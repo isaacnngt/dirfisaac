@@ -299,9 +299,9 @@ CREATE OR REPLACE PACKAGE BODY dbamv.pkg_fnfi_dirf IS
 
                       ,vl_acrescimo)
 
-                      GROUP BY dt_base
+                      GROUP BY dt_base;
 
-UNION all
+/*UNION all
 
 SELECT dt_base, 
         SUM(vl_rendimento) vl_rendimento FROM ( 
@@ -527,7 +527,7 @@ SELECT  cp.cd_con_pag,
 
                       ,vl_acrescimo)
 
-                      GROUP BY dt_base;		
+                      GROUP BY dt_base;	*/	
               
 
       -- Valor do Detalhamento
@@ -648,7 +648,7 @@ SELECT  cp.cd_con_pag,
                   ,dt_det.dt_pagamento
                   ,tdp.cd_con_pag_filho
                   ,td.cd_atividade
-                  ,td.tp_detalhamento 
+                  ,td.tp_detalhamento /*
 				  
 	 
     UNION ALL
@@ -713,7 +713,7 @@ SELECT  cp.cd_con_pag,
 		  and it.tp_quitacao in ('Q','P') --Quitado e Parcialmente quitado   )
 
 /*parte*/		  
-	union all
+/*	union all
 	
 	select distinct cp.cd_con_pag        cd_con_pag,
                 td.tp_data           tp_data
@@ -838,7 +838,7 @@ select distinct cp.cd_con_pag        cd_con_pag,
                pg.dt_pagamento,
                tdp.cd_con_pag_filho,
                td.cd_atividade,
-               td.tp_detalhamento;  				  
+               td.tp_detalhamento; */ 				  
 
       cursor cDetalhamentoInss( pCPFCNPJ NUMBER) is
 
