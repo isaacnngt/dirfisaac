@@ -178,237 +178,12 @@ CREATE OR REPLACE PACKAGE BODY dbamv.pkg_fnfi_dirf IS
 
       cursor cVlRendimento( pCPFCNPJ NUMBER, pTp_Fornecedor Varchar2 ) is
         
-       select dt_base ,sum(vl_rendimento) vl_rendimento
-
-           from (SELECT to_number(to_char(dt_quitacao,'mm')) dt_base
-
-                       ,cd_con_pag
-
-                       ,decode(cd_estrutural,'1.2.1.1.2',sum(nvl(vl_prestacao,0)), '1.2.1.1.3',
-                                sum(nvl(vl_prestacao,0)),vl_detalhamento + vl_pago + (nvl(vl_desconto,0) - nvl(vl_acrescimo,0)))  vl_rendimento
-
-
-                   FROM (
-
-
-			SELECT  cp.cd_con_pag,
-                     pg.cd_pagcon_pag,
-                            pg.dt_pagamento dt_quitacao
-
-                      ,p.cd_estrutural
-
-                      ,pc.cd_prestacao_contas
-
-                      ,pc.vl_prestacao
-
-                      ,Sum(Nvl(tdp.vl_detalhamento,0)) vl_detalhamento
-
-                      ,pg.vl_pago
-
-                      ,cp.vl_desconto
-
-                      ,cp.vl_acrescimo
-
-                from dbamv.con_pag cp
-
-                    ,dbamv.itcon_pag itcp
-
-                    ,dbamv.processo p
-
-                    ,dbamv.fornecedor f
-
-                    ,dbamv.prestacao_de_contas pc
-
-                     ,dbamv.tip_detcon_pag tdp
-
-                     ,dbamv.tip_detalhe td
-
-                     ,dbamv.pagcon_pag pg
-
-                where cp.cd_processo = p.cd_processo
-
-                  and cp.cd_fornecedor  = f.cd_fornecedor
-
-                  and itcp.cd_con_pag = cp.cd_con_pag
-
-                  and cp.cd_con_pag       = tdp.cd_con_pag_pai (+)
-
-                  and tdp.cd_detalhamento = td.cd_detalhamento (+)
-
-                  AND (tdp.cd_pagcon_pag IS NULL OR tdp.cd_pagcon_pag = pg.cd_pagcon_pag)
-
-                  and pg.cd_itcon_pag = itcp.cd_itcon_pag
-                and pg.dt_estorno is null
-                  and trunc(pg.dt_pagamento) between trunc(pDtInicial) and trunc(pDtFinal)
-
-           			 and p.cd_estrutural not in ('1.1.1.1.3','1.2.1.1.5','2.1.1.1.3','2.1.1.1.1')
-
-           		   and (( cp.cd_multi_empresa = pCdMultiEmpresa )
-
-         			    or (Dbamv.Pkg_Transacao_Entre_Empresas.IsFilial(cp.cd_multi_empresa, pCdMultiEmpresa ) = 1 ))
-
-           			 and f.cd_fornecedor = pCPFCNPJ 
-
-                 AND f.cd_fornecedor NOT IN (380,26748,20967,2918)  --isaac
-
-           			 and f.tp_fornecedor = pTp_Fornecedor
-
-           			 and cp.cd_con_pag   = pc.cd_con_pag (+)
-
-           			 and pc.cd_itcon_pag is null
-
-           			 and cp.cd_fornecedor is not null
-
-           			 and cp.cd_previsao is NULL
-
-                 and PG.tp_pagamento <> 'B'
-
-                 AND (itcp.nr_parcela = 1  OR (itcp.nr_parcela >= 1 AND td.cd_atividade = '1708'))
-
-           			 --and itcp.nr_parcela = 1
-
-         		group by pg.dt_pagamento
-                       ,pg.cd_pagcon_pag
-                      ,cp.cd_con_pag
-
-                      ,p.cd_estrutural
-
-                      ,pc.cd_prestacao_contas
-
-                      ,pc.vl_prestacao
-
-
-
-                      ,pg.vl_pago
-
-                      ,cp.vl_desconto
-
-                      ,cp.vl_acrescimo  )
-
-                        group BY dt_quitacao
-
-                      ,cd_con_pag
-
-                      ,cd_estrutural
-
-                      ,vl_prestacao
-
-                       ,vl_detalhamento
-                       ,vl_pago
-                      ,vl_desconto
-
-                      ,vl_acrescimo)
-
-                      GROUP BY dt_base;
-
-/*UNION all
-
-SELECT dt_base, 
-        SUM(vl_rendimento) vl_rendimento FROM ( 
-SELECT To_number(To_char(dt_pagamento, 'mm')) DT_BASE,
-       cd_con_pag,
-       vl_rendimento_pag                      vl_rendimento
-FROM   (SELECT pg.dt_pagamento dt_pagamento,
-               cp.cd_con_pag,
-               ( SUM(Nvl(pg.vl_pago, 0) + Nvl(pg.vl_desconto, 0) -
-                     Nvl(pg.vl_acrescimo, 0) +
-                           Nvl(cp.vl_desconto, 0) - Nvl(cp.vl_acrescimo, 0) +
-                           Decode (it.nr_parcela, 1, Nvl (Det_imp.vl_detalhe, 0),0) + Nvl (pg.vl_imposto, 0)) )  vl_rendimento_pag --MFSS
-        FROM   dbamv.con_pag cp,
-               dbamv.itcon_pag it,
-               dbamv.pagcon_pag pg,
-               dbamv.processo p,
-               dbamv.fornecedor f,
-               dbamv.plano_contas pl,
-               (SELECT tdc.cd_con_pag_pai,
-                       SUM(Nvl(tdc.vl_detalhamento, 0)) vl_detalhe
-                FROM   dbamv.tip_detcon_pag tdc,
-                       dbamv.tip_detalhe td
-                WHERE  tdc.cd_pagcon_pag IS NULL
-                       AND tdc.cd_detalhamento = td.cd_detalhamento
-                       AND td.tp_data <> 'P'
-                GROUP  BY tdc.cd_con_pag_pai) Det_imp
-        WHERE  cp.cd_processo = p.cd_processo
-               AND cp.cd_fornecedor = f.cd_fornecedor
-               AND cp.cd_reduzido = pl.cd_reduzido (+)
-               AND cp.cd_con_pag = det_imp.cd_con_pag_pai(+)
-               -- AND it.nr_parcela =1
-               AND it.cd_con_pag = cp.cd_con_pag
-               AND pg.tp_pagamento <> 'B'
-               --AND f.cd_fornecedor = pcpfcnpj
-               AND f.cd_fornecedor = 26748
-               AND f.cd_fornecedor = pCPFCNPJ
-               AND f.tp_fornecedor = pTp_Fornecedor
-               AND it.cd_itcon_pag = pg.cd_itcon_pag
-               -- and to_char(cp.dt_emissao,'yyyy') = to_char(pg.dt_pagamento,'yyyy')
-               AND p.cd_estrutural NOT IN ( '1.1.1.1.3', 
-                                            '1.2.1.1.5',
-                                            '2.1.1.1.3',
-                                            '2.1.1.1.1',
-                                            '1.2.1.1.2' )
-               AND cp.cd_previsao IS NULL
-               AND pg.cd_pagcon_pag = (SELECT Min (cd_pagcon_pag)
-                                       FROM   dbamv.pagcon_pag
-                                       WHERE  cd_itcon_pag = Pg.cd_itcon_pag
-                                              AND dt_estorno IS NULL)
-               AND ( ( cp.cd_multi_empresa = pCdMultiEmpresa )
-                      OR (
-               dbamv.pkg_transacao_entre_empresas.Isfilial(cp.cd_multi_empresa,pCdMultiEmpresa) = 1 ) )
-               AND Trunc(pg.dt_pagamento) BETWEEN trunc(pDtInicial) and trunc(pDtFinal)
-        GROUP  BY pg.dt_pagamento,
-                  cp.cd_con_pag,
-                  Decode(it.nr_parcela, 1, Nvl(Det_imp.vl_detalhe, 0), 0))) 
-
-                  GROUP BY dt_base
-
-UNION ALL
-
-         
-SELECT dt_base, 
-        SUM(vl_rendimento) vl_rendimento FROM ( 
-SELECT To_number(To_char(dt_pagamento, 'mm')) DT_BASE,
-       cd_con_pag,
-       vl_rendimento_pag                      vl_rendimento
-FROM   (SELECT pg.dt_pagamento          dt_pagamento,
-              cp.cd_con_pag,
-                Round((((((SUM(Nvl(pg.vl_pago, 0) + Nvl(pg.vl_desconto, 0) -
-                             Nvl(pg.vl_acrescimo, 0) +
-                               Nvl(pg.vl_imposto, 0))) *100)/0.9185))/100),2) vl_rendimento_pag
-            FROM   dbamv.con_pag cp,
-            dbamv.itcon_pag it,
-            dbamv.pagcon_pag pg,
-            dbamv.processo p,
-            dbamv.fornecedor f,
-            dbamv.plano_contas pl
-            WHERE  cp.cd_processo = p.cd_processo
-            AND cp.cd_fornecedor = f.cd_fornecedor
-            AND cp.cd_reduzido = pl.cd_reduzido (+)
-            and pg.dt_estorno is null
-            AND it.cd_con_pag = cp.cd_con_pag
-            AND it.cd_itcon_pag = pg.cd_itcon_pag
-			and pg.tp_pagamento <> 'B'
-            AND p.cd_estrutural NOT IN ( '1.1.1.1.3', '1.2.1.1.5', '2.1.1.1.3','2.1.1.1.1', '1.2.1.1.2' )
-            AND cp.cd_previsao IS NULL
-            --AND f.cd_fornecedor = pcpfcnpj
-            AND f.cd_fornecedor =  380
-            AND f.cd_fornecedor =  pCPFCNPJ
-            AND f.tp_fornecedor = pTp_Fornecedor
-            AND pg.cd_pagcon_pag <> (SELECT Min (cd_pagcon_pag)
-            FROM   dbamv.pagcon_pag
-            WHERE  cd_itcon_pag = Pg.cd_itcon_pag
-            AND dt_estorno IS NULL)
-            and (( cp.cd_multi_empresa = pCdMultiEmpresa )or (Dbamv.Pkg_Transacao_Entre_Empresas.IsFilial(cp.cd_multi_empresa, pCdMultiEmpresa ) = 1 ))
-            and trunc(pg.dt_pagamento) between trunc(pDtInicial) and trunc(pDtFinal) 
-                  GROUP  BY  pg.dt_pagamento,
-                             cp.cd_con_pag))
-
-            GROUP  BY dt_base
---PARTE FINAL
-UNION ALL
-
  select dt_base ,sum(vl_rendimento) vl_rendimento
 
-           from (SELECT to_number(to_char(dt_quitacao,'mm')) dt_base
+           from 
+           
+           
+           (SELECT to_number(to_char(dt_quitacao,'mm')) dt_base
 
                        ,cd_con_pag
 
@@ -474,12 +249,12 @@ SELECT  cp.cd_con_pag,
            		   and (( cp.cd_multi_empresa = pCdMultiEmpresa )
 
          			    or (Dbamv.Pkg_Transacao_Entre_Empresas.IsFilial(cp.cd_multi_empresa, pCdMultiEmpresa ) = 1 ))
-				
-				and (f.cd_fornecedor = 20967 or f.cd_fornecedor = 2918 )
-					
-				AND f.nr_cgc_cpf  IN (select nr_cgc_cpf from dbamv.fornecedor where cd_fornecedor = pCPFCNPJ)  --isaac
-				 
-				  AND f.tp_fornecedor = pTp_Fornecedor
+
+               	 and f.cd_fornecedor = pCPFCNPJ
+
+                 AND f.cd_fornecedor NOT IN (380,20967,2918, 26748)  --isaac
+
+           			 and f.tp_fornecedor = pTp_Fornecedor
 
            			 and cp.cd_con_pag   = pc.cd_con_pag (+)
 
@@ -489,7 +264,7 @@ SELECT  cp.cd_con_pag,
 
            			 and cp.cd_previsao is NULL
 
-                 and PG.tp_pagamento <> 'B'
+                 and pg.tp_pagamento <> 'B'
 
                  AND (itcp.nr_parcela = 1  OR (itcp.nr_parcela >= 1 AND td.cd_atividade = '1708'))
 
@@ -513,7 +288,7 @@ SELECT  cp.cd_con_pag,
 
                       ,cp.vl_acrescimo  )
 
-                        group BY dt_quitacao
+    group BY dt_quitacao
 
                       ,cd_con_pag
 
@@ -527,7 +302,110 @@ SELECT  cp.cd_con_pag,
 
                       ,vl_acrescimo)
 
-                      GROUP BY dt_base;	*/	
+                      GROUP BY dt_base
+                      
+UNION all
+
+SELECT dt_base, 
+        SUM(vl_rendimento) vl_rendimento FROM ( 
+SELECT To_number(To_char(dt_pagamento, 'mm')) DT_BASE,
+       cd_con_pag,
+       vl_rendimento_pag                      vl_rendimento
+FROM   (SELECT pg.dt_pagamento dt_pagamento,
+               cp.cd_con_pag,
+               ( SUM(Nvl(pg.vl_pago, 0) + Nvl(pg.vl_desconto, 0) -
+                     Nvl(pg.vl_acrescimo, 0) +
+                           Nvl(cp.vl_desconto, 0) - Nvl(cp.vl_acrescimo, 0) +
+                           Decode (it.nr_parcela, 1, Nvl (Det_imp.vl_detalhe, 0),0) + Nvl (pg.vl_imposto, 0)) )  vl_rendimento_pag --MFSS
+        FROM   dbamv.con_pag cp,
+               dbamv.itcon_pag it,
+               dbamv.pagcon_pag pg,
+               dbamv.processo p,
+               dbamv.fornecedor f,
+               dbamv.plano_contas pl,
+               (SELECT tdc.cd_con_pag_pai,
+                       SUM(Nvl(tdc.vl_detalhamento, 0)) vl_detalhe
+                FROM   dbamv.tip_detcon_pag tdc,
+                       dbamv.tip_detalhe td
+                WHERE  tdc.cd_pagcon_pag IS NULL
+                       AND tdc.cd_detalhamento = td.cd_detalhamento
+                       AND td.tp_data <> 'P'
+                GROUP  BY tdc.cd_con_pag_pai) Det_imp
+        WHERE  cp.cd_processo = p.cd_processo
+               AND cp.cd_fornecedor = f.cd_fornecedor
+               AND cp.cd_reduzido = pl.cd_reduzido (+)
+               AND cp.cd_con_pag = det_imp.cd_con_pag_pai(+)
+               -- AND it.nr_parcela =1
+               AND it.cd_con_pag = cp.cd_con_pag
+               AND pg.tp_pagamento <> 'B'
+               --AND f.cd_fornecedor = pcpfcnpj
+               AND f.cd_fornecedor <> 380
+               AND f.cd_fornecedor = pCPFCNPJ
+               AND f.tp_fornecedor = pTp_Fornecedor
+               AND it.cd_itcon_pag = pg.cd_itcon_pag
+               -- and to_char(cp.dt_emissao,'yyyy') = to_char(pg.dt_pagamento,'yyyy')
+               AND p.cd_estrutural NOT IN ( '1.1.1.1.3', 
+                                            '1.2.1.1.5',
+                                            '2.1.1.1.3',
+                                            '2.1.1.1.1',
+                                            '1.2.1.1.2' )
+               AND cp.cd_previsao IS NULL
+               AND pg.cd_pagcon_pag = (SELECT Min (cd_pagcon_pag)
+                                       FROM   dbamv.pagcon_pag
+                                       WHERE  cd_itcon_pag = Pg.cd_itcon_pag
+                                              AND dt_estorno IS NULL)
+               AND ( ( cp.cd_multi_empresa = pCdMultiEmpresa )
+                      OR (
+               dbamv.pkg_transacao_entre_empresas.Isfilial(cp.cd_multi_empresa,pCdMultiEmpresa) = 1 ) )
+               AND Trunc(pg.dt_pagamento) BETWEEN trunc(pDtInicial) and trunc(pDtFinal)
+        GROUP  BY pg.dt_pagamento,
+                  cp.cd_con_pag,
+                  Decode(it.nr_parcela, 1, Nvl(Det_imp.vl_detalhe, 0), 0))) 
+
+                  GROUP BY dt_base
+
+UNION ALL
+
+         
+SELECT dt_base, 
+        SUM(vl_rendimento) vl_rendimento FROM ( 
+SELECT To_number(To_char(dt_pagamento, 'mm')) DT_BASE,
+       cd_con_pag,
+       vl_rendimento_pag                      vl_rendimento
+FROM   (SELECT pg.dt_pagamento          dt_pagamento,
+              cp.cd_con_pag,
+                Round((((((SUM(Nvl(pg.vl_pago, 0) + Nvl(pg.vl_desconto, 0) -
+                             Nvl(pg.vl_acrescimo, 0) +
+                               Nvl(pg.vl_imposto, 0))) *100)/0.9185))/100),2) vl_rendimento_pag
+            FROM   dbamv.con_pag cp,
+            dbamv.itcon_pag it,
+            dbamv.pagcon_pag pg,
+            dbamv.processo p,
+            dbamv.fornecedor f,
+            dbamv.plano_contas pl
+            WHERE  cp.cd_processo = p.cd_processo
+            AND cp.cd_fornecedor = f.cd_fornecedor
+            AND cp.cd_reduzido = pl.cd_reduzido (+)
+            and pg.dt_estorno is null
+            AND it.cd_con_pag = cp.cd_con_pag
+            AND it.cd_itcon_pag = pg.cd_itcon_pag
+			and pg.tp_pagamento <> 'B'
+            AND p.cd_estrutural NOT IN ( '1.1.1.1.3', '1.2.1.1.5', '2.1.1.1.3','2.1.1.1.1', '1.2.1.1.2' )
+            AND cp.cd_previsao IS NULL
+            --AND f.cd_fornecedor = pcpfcnpj
+            AND f.cd_fornecedor =  380
+            AND f.cd_fornecedor =  pCPFCNPJ
+            AND f.tp_fornecedor = pTp_Fornecedor
+            AND pg.cd_pagcon_pag <> (SELECT Min (cd_pagcon_pag)
+            FROM   dbamv.pagcon_pag
+            WHERE  cd_itcon_pag = Pg.cd_itcon_pag
+            AND dt_estorno IS NULL)
+            and (( cp.cd_multi_empresa = pCdMultiEmpresa )or (Dbamv.Pkg_Transacao_Entre_Empresas.IsFilial(cp.cd_multi_empresa, pCdMultiEmpresa ) = 1 ))
+            and trunc(pg.dt_pagamento) between trunc(pDtInicial) and trunc(pDtFinal) 
+                  GROUP  BY  pg.dt_pagamento,
+                             cp.cd_con_pag))
+
+            GROUP  BY dt_base; 
               
 
       -- Valor do Detalhamento
@@ -578,8 +456,7 @@ SELECT  cp.cd_con_pag,
            and td.cd_atividade  = pAtividade;
 
       Cursor cDetalhamento( pCPFCNPJ NUMBER, pAtividade VARCHAR2 ) is
-
-        select distinct cp.cd_con_pag        cd_con_pag,
+      select distinct cp.cd_con_pag        cd_con_pag,
                 td.tp_data           tp_data
 
              ,cp.dt_lancamento     dt_lancamento
@@ -629,8 +506,9 @@ SELECT  cp.cd_con_pag,
 
          and trunc(dt_det.dt_pagamento) between trunc(pDtInicial) and trunc(pDtFinal)
         --and trunc(it.dt_quitacao) between trunc(pDtInicial) and trunc(pDtFinal)
-		
-		 and cp.cd_fornecedor NOT in (380,20967,2918,26748 )
+
+         AND cp.cd_fornecedor <> pCPFCNPJ
+
          and cp.cd_fornecedor = pCPFCNPJ
 
          and td.cd_atividade  = pAtividade
@@ -648,9 +526,8 @@ SELECT  cp.cd_con_pag,
                   ,dt_det.dt_pagamento
                   ,tdp.cd_con_pag_filho
                   ,td.cd_atividade
-                  ,td.tp_detalhamento /*
-				  
-	 
+                  ,td.tp_detalhamento 
+
     UNION ALL
 
     -- Cursor cDetalhamento( pCPFCNPJ NUMBER, pAtividade VARCHAR2 ) is
@@ -705,140 +582,14 @@ SELECT  cp.cd_con_pag,
 		   and (( cp.cd_multi_empresa = pCdMultiEmpresa )
          			    or (Dbamv.Pkg_Transacao_Entre_Empresas.IsFilial(cp.cd_multi_empresa, pCdMultiEmpresa ) = 1 ))
 		  --and  f.cd_fornecedor  = 2918 --pCPFCNPJ
-     AND f.cd_fornecedor =  380
+     AND f.cd_fornecedor =  pCPFCNPJ
 	    AND f.cd_fornecedor =  pCPFCNPJ
       and td.cd_atividade  = pAtividade
 		 --and it.nr_parcela = 1
 		 -- and to_char(cp.dt_emissao,'yyyy') = to_char(pg.dt_pagamento,'yyyy')
-		  and it.tp_quitacao in ('Q','P') --Quitado e Parcialmente quitado   )
+		  and it.tp_quitacao in ('Q','P'); --Quitado e Parcialmente quitado   )
 
-/*parte*/		  
-/*	union all
-	
-	select distinct cp.cd_con_pag        cd_con_pag,
-                td.tp_data           tp_data
 
-             ,cp.dt_lancamento     dt_lancamento
-
-             ,dt_det.dt_pagamento       dt_pagamento
-
-             ,tdp.cd_con_pag_filho
-
-             ,Sum(nvl(tdp.vl_detalhamento, 0))  vl_detalhamento
-
-             ,td.cd_atividade      cd_atividade
-
-             ,td.tp_detalhamento   tp_detalhamento
-
-        From dbamv.con_pag cp
-
-            ,dbamv.itcon_pag it
-
-            ,dbamv.tip_detcon_pag tdp
-
-            ,dbamv.tip_detalhe td
-			
-			,dbamv.fornecedor f
-
-            ,(SELECT p.cd_pagcon_pag, i.cd_con_pag, p.dt_pagamento dt_pagamento
-
-                 from dbamv.itcon_pag i
-
-                     ,dbamv.pagcon_pag p
-
-                Where i.cd_itcon_pag = p.cd_itcon_pag
-                and p.tp_pagamento <> 'B'
-            and p.dt_estorno is null
-           	   ) dt_det
-
-       Where cp.cd_con_pag       = it.cd_con_pag
-
-         and it.cd_con_pag       = tdp.cd_con_pag_pai
-
-         and tdp.cd_detalhamento = td.cd_detalhamento
-
-         and it.cd_con_pag       = dt_det.cd_con_pag
-		 
-		 and cp.cd_fornecedor = f.cd_fornecedor
-
-         AND (tdp.cd_pagcon_pag IS NULL OR tdp.cd_pagcon_pag = dt_det.cd_pagcon_pag)
-
-         and (( cp.cd_multi_empresa = pCdMultiEmpresa )
-
-          or ( Dbamv.Pkg_Transacao_Entre_Empresas.IsFilial(cp.cd_multi_empresa, pCdMultiEmpresa ) = 1 ))
-
-         and trunc(dt_det.dt_pagamento) between trunc(pDtInicial) and trunc(pDtFinal)
-        --and trunc(it.dt_quitacao) between trunc(pDtInicial) and trunc(pDtFinal)
-		
-         and (cp.cd_fornecedor = 20967 or cp.cd_fornecedor = 2918 )
-
-		 AND f.nr_cgc_cpf  IN (select nr_cgc_cpf from dbamv.fornecedor where cd_fornecedor = pCPFCNPJ)  --isaac
-
-         and td.cd_atividade  = pAtividade
-         AND (
-				it.nr_parcela = 1
-				OR (
-					it.nr_parcela >= 1
-					AND td.cd_atividade = '1708'
-					)
-				)
-       --  and it.nr_parcela = 1
-          group by cp.cd_con_pag
-                  ,td.tp_data
-                  ,cp.dt_lancamento
-                  ,dt_det.dt_pagamento
-                  ,tdp.cd_con_pag_filho
-                  ,td.cd_atividade
-                  ,td.tp_detalhamento
---parte radio
-union all 
-
-select distinct cp.cd_con_pag        cd_con_pag,
-                td.tp_data           tp_data
-
-             ,cp.dt_lancamento     dt_lancamento
-
-             ,pg.dt_pagamento       dt_pagamento
-
-             ,tdp.cd_con_pag_filho
-
-             ,Sum(nvl(tdp.vl_detalhamento, 0))  vl_detalhamento
-
-             ,td.cd_atividade      cd_atividade
-
-             ,td.tp_detalhamento   tp_detalhamento
-		 From dbamv.con_pag cp
-		     ,dbamv.itcon_pag it
-		     ,dbamv.tip_detcon_pag tdp
-		     ,dbamv.tip_detalhe td
-		     ,dbamv.fornecedor f
-         ,dbamv.pagcon_pag pg
-		Where cp.cd_con_pag       = it.cd_con_pag
-		  and it.cd_con_pag       = tdp.cd_con_pag_pai
-		  and it.cd_itcon_pag     =  pg.cd_itcon_pag
-		  and cp.cd_fornecedor    = f.cd_fornecedor
-      AND pg.cd_pagcon_pag   = tdp.cd_pagcon_pag
-      AND td.tp_data = 'P'
-		  and tdp.cd_detalhamento = td.cd_detalhamento
-		  and PG.tp_pagamento <> 'B'
-		  and (( cp.cd_multi_empresa = pCdMultiEmpresa )
-         			    or (Dbamv.Pkg_Transacao_Entre_Empresas.IsFilial(cp.cd_multi_empresa, pCdMultiEmpresa ) = 1 ))
-		  AND pg.dt_pagamento between trunc(pDtInicial) and trunc(pDtFinal)
-		  AND td.tp_detalhamento <> 'N'
-		  --and   f.cd_fornecedor  = 2918-- pCPFCNPJ
-      and (cp.cd_fornecedor = 26748 )
-
-		 AND f.nr_cgc_cpf  IN (select nr_cgc_cpf from dbamv.fornecedor where cd_fornecedor = pCPFCNPJ)  --isaac
-		  and it.tp_quitacao in ('Q','P') --Quitado e Parcialmente quitado
-		  and td.cd_atividade  = pAtividade
-
-      GROUP BY cp.cd_con_pag,
-               td.tp_data,
-               cp.dt_lancamento,
-               pg.dt_pagamento,
-               tdp.cd_con_pag_filho,
-               td.cd_atividade,
-               td.tp_detalhamento; */ 				  
 
       cursor cDetalhamentoInss( pCPFCNPJ NUMBER) is
 
