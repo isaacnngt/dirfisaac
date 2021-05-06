@@ -39,7 +39,7 @@ CREATE OR REPLACE PACKAGE BODY dbamv.pkg_fnfi_dirf IS
            and cp.cd_fornecedor  = f.cd_fornecedor
            and itcp.cd_con_pag = cp.cd_con_pag
 		   AND cp.cd_tip_doc = tdc.cd_tip_doc     -- willian FINAN-2653
-			AND NVL(tdc.sn_retem_imposto,'S') = 'S'  -- willian FINAN-2653
+			--AND NVL(tdc.sn_retem_imposto,'S') = 'S'  -- willian FINAN-2653
            and p.cd_estrutural not in ('1.1.1.1.3','1.2.1.1.5','2.1.1.1.3','2.1.1.1.1')
            and cp.cd_fornecedor is not null
            and f.nr_cgc_cpf is not null
@@ -86,7 +86,7 @@ CREATE OR REPLACE PACKAGE BODY dbamv.pkg_fnfi_dirf IS
          where cp.cd_processo = p.cd_processo
            and cp.cd_fornecedor  = f.cd_fornecedor
 		    AND cp.cd_tip_doc = tdc.cd_tip_doc     -- willian FINAN-2653
-			AND NVL(tdc.sn_retem_imposto,'S') = 'S'  -- willian FINAN-2653
+			--AND NVL(tdc.sn_retem_imposto,'S') = 'S'  -- willian FINAN-2653
            and to_char(cp.dt_lancamento,'mm') = pMes
            and to_char(cp.dt_lancamento,'yyyy') = pAno
            and p.cd_estrutural not in ('1.1.1.1.3','1.2.1.1.5','2.1.1.1.3','2.1.1.1.1')
@@ -450,7 +450,7 @@ GROUP  BY dt_base ;
          Where cp.cd_con_pag       = it.cd_con_pag
            and it.cd_con_pag       = tdp.cd_con_pag_pai
 		   AND cp.cd_tip_doc = tdc.cd_tip_doc     -- willian FINAN-2653
-		   AND NVL(tdc.sn_retem_imposto,'S') = 'S'  -- willian FINAN-2653
+		   --AND NVL(tdc.sn_retem_imposto,'S') = 'S'  -- willian FINAN-2653
            and tdp.cd_detalhamento = td.cd_detalhamento
            and (( cp.cd_multi_empresa = pCdMultiEmpresa )
             or ( Dbamv.Pkg_Transacao_Entre_Empresas.IsFilial(cp.cd_multi_empresa, pCdMultiEmpresa ) = 1 ))
@@ -491,7 +491,7 @@ GROUP  BY dt_base ;
 --           and f.cd_fornecedor = pCPFCNPJ
         and f.nr_cgc_cpf = pCPFCNPJ
 		    AND cp.cd_tip_doc = td.cd_tip_doc     -- willian FINAN-2653
-			AND NVL(td.sn_retem_imposto,'S') = 'S'  -- willian FINAN-2653
+			--AND NVL(td.sn_retem_imposto,'S') = 'S'  -- willian FINAN-2653
            and cp.cd_fornecedor = f.cd_fornecedor
            and tdcp.cd_con_pag_pai(+) = cp.cd_con_pag
            and tpd.tp_detalhamento in ('F','J')
